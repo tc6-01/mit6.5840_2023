@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
 
 type Coordinator struct {
@@ -23,27 +24,86 @@ type Coordinator struct {
 
 // Your code here -- RPC handlers for the worker to call.
 // guarantue the atmoic
-func (c *Coordinator) FinishedMap(args *WorkerArgs, argv *WorkerReply) {
+func (c *Coordinator) ReceiveMapFinished(args *WorkerArgs, argv *ExampleReply) error {
 	c.mu.Lock()
 	c.mapfinished += 1
 	c.maptasklog[args.MapTaskNum] = 2
 	c.mu.Unlock()
+	return nil
 }
 
-func (c *Coordinator) FinishedReduce(args *WorkerArgs, argv *WorkerReply) {
+func (c *Coordinator) ReceiveReduceFinished(args *WorkerArgs, reply *ExampleReply) error {
 	c.mu.Lock()
 	c.reducefinished += 1
-	c.reducetasklog[argv.ReduceTaskNum] = 2
+	c.reducetasklog[args.ReduceTaskNum] = 2
 	c.mu.Unlock()
+	return nil
 }
 
 func (c *Coordinator) AllowTask(args *WorkerArgs, reply *WorkerReply) error {
 	c.mu.Lock()
+	// fmt.Println("master启动，开始分配任务")
+	// time.Sleep(time.Duration(10) * time.Second)
 	if c.mapfinished < c.nMap {
 		// allocate map tasks
-
-	} else if c.reducefinished < c.nReduce {
-
+		// get the task location
+		allocate := -1
+		for i := 0; i < c.nMap; i++ {
+			if c.maptasklog[i] == 0 {
+				allocate = i
+				break
+			}
+		}
+		if allocate == -1 {
+			// all task finished
+			reply.TaskType = 2
+			c.mu.Unlock()
+		} else {
+			reply.Nreduce = c.nReduce
+			reply.MapTaskNum = allocate
+			reply.TaskType = 0
+			reply.FileName = c.files[allocate]
+			c.maptasklog[allocate] = 1
+			c.mu.Unlock()
+			// check the status of Worker
+			go func() {
+				time.Sleep(time.Duration(4) * time.Second)
+				c.mu.Lock()
+				if c.maptasklog[allocate] == 1 {
+					c.maptasklog[allocate] = 0
+				}
+				c.mu.Unlock()
+			}()
+		}
+	} else if c.mapfinished == c.nMap && c.reducefinished < c.nReduce {
+		// after all map task finished, reduce task will be allocated!
+		allocate := -1
+		for i := 0; i < c.nReduce; i++ {
+			if c.reducetasklog[i] == 0 {
+				allocate = i
+				break
+			}
+		}
+		if allocate == -1 {
+			// all task finished
+			reply.TaskType = 2
+			c.mu.Unlock()
+		} else {
+			reply.ReduceTaskNum = allocate
+			reply.TaskType = 1
+			reply.Nmap = c.nMap
+			c.reducetasklog[allocate] = 1
+			c.mu.Unlock()
+			// check the status of Worker
+			go func() {
+				time.Sleep(time.Duration(4) * time.Second)
+				c.mu.Lock()
+				if c.reducetasklog[allocate] == 1 {
+					c.reducetasklog[allocate] = 0
+				}
+				c.mu.Unlock()
+			}()
+		}
 	} else {
 		reply.TaskType = 3
 		c.mu.Unlock()

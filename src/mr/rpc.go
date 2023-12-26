@@ -27,8 +27,8 @@ type ExampleReply struct {
 // Add your RPC definitions here.
 // master only focus on the task unfinished
 type WorkerArgs struct {
-	MapTaskNum    int // unfinished map tasks
-	ReduceTaskNum int // unfinished reduce tasks
+	MapTaskNum    int // finish task logs ,if there is reduce, it will be -1
+	ReduceTaskNum int // finish reduce logs, if the task is map, it will  be -1
 }
 
 // some map or reduce tasks return
@@ -36,6 +36,8 @@ type WorkerReply struct {
 	TaskType      int // 0: map task, 1: reduce task, 2: waiting, 3: job finished
 	MapTaskNum    int
 	ReduceTaskNum int
+	Nmap          int
+	Nreduce       int
 	FileName      string
 }
 
