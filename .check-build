@@ -13,7 +13,7 @@ REFERENCE_FILES=(
     src/main/mrsequential.go
     src/main/mrcoordinator.go
     src/main/mrworker.go
-
+    mr-out*
     # lab 2
     src/raft/persister.go
     src/raft/test_test.go
